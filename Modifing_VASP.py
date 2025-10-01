@@ -10,6 +10,22 @@ def Fix_Type_POSCAR(fix_type,atom_type,atom_num_tot,atom_num):
         l = l + atom_num[i]
     return(atoms_relax1)
 
+def Gen_Type_Show_POSCAR(atoms_relax,atom_type,atoms_coor,atom_num):
+    atom_type = ['O','N']
+    fixed = 0
+    relaxed = 0
+    atoms_coor_new = []
+    for i in range(len(atoms_relax)):
+        if -1 in atoms_relax[i]:            
+            fixed = fixed + 1
+            atoms_coor_new.append(atoms_coor[i])
+    for i in range(len(atoms_relax)):
+        if [0,0,0] == atoms_relax[i]:            
+            relaxed = relaxed + 1
+            atoms_coor_new.append(atoms_coor[i])
+    atom_num = [fixed,relaxed]
+    return(atom_type,atom_num,atoms_coor_new)
+
 def Fix_Height_POSCAR(direct_ban,lattice_con,D_or_C,atom_num_tot,atoms_coor):
 # direct_ban only for direct coordinate
     if D_or_C < 0: # C2D
