@@ -165,8 +165,18 @@ def Parsing_OUTCAR_Result(read_OUT_name):
     E_diff = []
     f_or_nf = -1
     all_lines = len(open(read_OUT_name).readlines())
+    
 ###############################################################################
-# stop criteria   
+# reading version  
+###############################################################################
+    with open(read_OUT_name,'r') as ff:
+        a = linecache.getline(read_OUT_name,1)
+        if a.lstrip().startswith('vasp.6'):
+            version = 6
+        if a.lstrip().startswith('vasp.5'):
+            version = 5
+###############################################################################
+#checking from start  
 ###############################################################################
     with open(read_OUT_name,'r') as ff:
         i = 1
@@ -229,19 +239,43 @@ def Parsing_OUTCAR_Result(read_OUT_name):
 ###############################################################################
 # reading force/energy message
 ###############################################################################
-            if a.find('FORCES:') >=0:
-                b = a.replace(' ','\n')
-                with open(proc_message,'w') as ff:
-                    ff.write(b)
-                with open(proc_message,'r') as ff:
-                    a = ff.readlines()
-                for j in range(len(a)):
-                    b = a[j].replace('\n','')
-                    a[j] = b
-                while '' in a:
-                    a.remove('')
-                force.append(eval(a[4]))
-            a = linecache.getline(read_OUT_name,i)
+            if version == 6:
+                if a.find('TOTAL-FORCE') >=0: # ith row
+                    forcemax = []
+                    j = i + 1
+                    while True:
+                        j = j + 1
+                        a = linecache.getline(read_OUT_name,j)
+                        if a.lstrip().startswith('----'):
+                            break
+                        b = a.replace(' ','\n')
+                        with open(proc_message,'w') as ff:
+                            ff.write(b)
+                        with open(proc_message,'r') as ff:
+                            a = ff.readlines()
+                        for k in range(len(a)):
+                            b = a[k].replace('\n','')
+                            a[k] = b
+                        while '' in a:
+                            a.remove('')
+                        forcemax.append((float(a[3])**2 + float(a[4])**2 + float(a[5])**2)**0.5)
+                    force.append(max(forcemax))
+                a = linecache.getline(read_OUT_name,i)
+                
+            if version == 5: 
+                if a.find('FORCES:') >=0:
+                    b = a.replace(' ','\n')
+                    with open(proc_message,'w') as ff:
+                        ff.write(b)
+                    with open(proc_message,'r') as ff:
+                        a = ff.readlines()
+                    for j in range(len(a)):
+                        b = a[j].replace('\n','')
+                        a[j] = b
+                    while '' in a:
+                        a.remove('')
+                    force.append(eval(a[4]))
+                a = linecache.getline(read_OUT_name,i)
 ###############################################################################
             if a.find('energy  without entropy') >=0:
                 b = a.replace(' ','\n')
@@ -296,6 +330,78 @@ def Parsing_OUTCAR_Result(read_OUT_name):
 ############################################################################### 
        
     return(f_or_nf,imagin,cm,mev,modes_3d,zpe,Energy0,force,E_sigma_0,E_diff)
+
+def Parsing_OUTCAR_Kpoints(read_OUT_name):
+    import re
+    
+    """Return k(list of (kx,ky,kz)), w(list of weights) from OUTCAR IBZKPT block(s)."""
+    k, w = [], []
+    num = r'[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eEdD][+-]?\d+)?'
+    row_re = re.compile(rf'^\s*({num})\s+({num})\s+({num})\s+({num})\s*$')
+    
+    # in_block: initiate matching; seen_any: successfully matched
+    in_block, seen_any = False, False
+    with open(read_OUT_name, 'r') as f:
+        for line in f:
+            s = line.rstrip('\n') # Delete '\n'
+            if not in_block and 'Following reciprocal coordinates' in s:
+                in_block, seen_any = True, False
+                continue
+            if in_block:
+                m = row_re.match(s)
+                if m:
+                    def f(x): return float(x.replace('D','E').replace('d','e'))
+                    k.append([f(m.group(1)), f(m.group(2)), f(m.group(3))])
+                    w.append(f(m.group(4)))
+                    seen_any = True
+                else:
+                    if seen_any:
+                        # break
+                        in_block, seen_any = False, False
+    
+    kx = []
+    ky = []
+    kz = []
+    for i in range(len(k)):
+        k[i][0]=abs(k[i][0])
+        kx.append(k[i][0])
+        k[i][1]=abs(k[i][1])
+        ky.append(k[i][1])
+        k[i][2]=abs(k[i][2])
+        kz.append(k[i][2])
+        
+    kx = sorted(set(kx))
+    ky = sorted(set(ky))
+    kz = sorted(set(kz))
+
+    for i in range(len(kx)):
+        if kx[0] < 0.000001:
+            if len(kx)==1:
+                nkpx = 1
+            else:
+                nkpx = int(round(1.0/kx[1]))
+        else:
+            nkpx = int(round(1.0/kx[0])/2)
+    for i in range(len(ky)):
+        if ky[0] < 0.000001:
+            if len(ky)==1:
+                nkpy = 1
+            else:
+                nkpy = int(round(1.0/ky[1]))
+        else:
+            nkpy = int(round(1.0/ky[0])/2)
+    for i in range(len(kz)):
+        if kz[0] < 0.000001:
+            if len(kz)==1:
+                nkpz = 1
+            else:
+                nkpz = int(round(1.0/kz[1]))
+        else:
+            nkpz = int(round(1.0/kz[0])/2)
+
+    nkps = [nkpx, nkpy, nkpz]
+    return nkps
+    
 
 
 
